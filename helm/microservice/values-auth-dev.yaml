@@ -1,0 +1,27 @@
+nameOverride: auth-service
+fullnameOverride: auth-service
+image:
+  repository: 014498640042.dkr.ecr.eu-west-2.amazonaws.com/auth-service
+  tag: dev-4f2619f
+
+env:
+  - name: REPO_BACKEND
+    value: memory
+  - name: PORT
+    value: "8080"
+  - name: REDIS_HOST
+    value: redis
+  - name: REDIS_PORT
+    value: "6379"
+  - name: JWT_SECRET
+    valueFrom:
+        secretKeyRef:
+            name: auth-service-secrets
+            key: JWT_SECRET
+  - name: JWT_ISSUER
+    value: ktor-microservices-kit
+probes:
+  liveness:
+    path: /auth/health
+  readiness:
+    path: /auth/ready
