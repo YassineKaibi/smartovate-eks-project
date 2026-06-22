@@ -1,0 +1,16 @@
+nameOverride: crud-service
+fullnameOverride: crud-service
+image:
+  repository: 014498640042.dkr.ecr.eu-west-2.amazonaws.com/crud-service
+  tag: dev-4f2619f
+
+env:
+  - name: REPO_BACKEND
+    value: memory
+  - name: PORT
+    value: "8080"
+probes:
+  liveness:
+    path: /items/health
+  readiness:
+    path: /items/ready
