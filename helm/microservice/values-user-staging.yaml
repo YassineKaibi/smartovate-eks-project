@@ -1,0 +1,33 @@
+nameOverride: user-service
+fullnameOverride: user-service
+image:
+  repository: 014498640042.dkr.ecr.eu-west-2.amazonaws.com/user-service
+  tag: dev-4f2619f
+
+env:
+  - name: REPO_BACKEND
+    value: postgres
+  - name: PORT
+    value: "8080"
+  - name: DB_HOST
+    value: smartovate-intern-yassine-pg.cba8u0meqrv7.eu-west-2.rds.amazonaws.com
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_NAME
+    value: user_db
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db-credentials
+        key: DB_USER
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db-credentials
+        key: DB_PASSWORD
+
+probes:
+  liveness:
+    path: /users/health
+  readiness:
+    path: /users/ready
