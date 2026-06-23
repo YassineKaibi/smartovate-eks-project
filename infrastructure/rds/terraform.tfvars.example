@@ -1,0 +1,14 @@
+region       = "eu-west-2"
+cluster_name = "smartovate-intern-yassine"
+
+# The three private subnets of the cluster VPC (one per AZ).
+private_subnet_ids = [
+  "subnet-0ffaa46f484ea3972", # eu-west-2c
+  "subnet-0e0536ac95d5caf9b", # eu-west-2b
+  "subnet-0be9ee7083ba716eb", # eu-west-2a
+]
+
+db_username = "smartovate"
+
+# Do NOT put the password here. Use: export TF_VAR_db_password='...'
+# engine_version = "16.4"   # optional: pin to silence plan drift
