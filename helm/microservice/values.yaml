@@ -32,3 +32,11 @@ resources:
   limits:
     cpu: 500m
     memory: 512Mi
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 70
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 120
