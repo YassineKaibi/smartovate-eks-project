@@ -18,6 +18,15 @@ vpc:
     publicAccess: true
     privateAccess: false
 
+iam:
+  withOIDC: true
+  serviceAccounts:
+    - metadata:
+        name: aws-load-balancer-controller
+        namespace: kube-system
+      attachPolicyARNs:
+        - arn:aws:iam::014498640042:policy/AWSLBControllerIAMPolicy
+
 managedNodeGroups:
   - name: smartovate-intern-ng
     instanceType: t3.medium
