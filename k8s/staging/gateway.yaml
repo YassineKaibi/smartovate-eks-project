@@ -1,0 +1,148 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-gateway-config
+  namespace: staging
+data:
+  nginx.conf: |
+    worker_processes auto;
+    events {
+        worker_connections 1024;
+    }
+    http {
+        log_format json_combined escape=json
+            '{'
+                '"time":"$time_iso8601",'
+                '"remote_addr":"$remote_addr",'
+                '"method":"$request_method",'
+                '"uri":"$request_uri",'
+                '"status":$status,'
+                '"body_bytes_sent":$body_bytes_sent,'
+                '"request_time":$request_time,'
+                '"upstream_response_time":"$upstream_response_time"'
+            '}';
+        access_log /dev/stdout json_combined;
+        error_log  /dev/stderr warn;
+
+        limit_req_zone $binary_remote_addr zone=api_limit:10m rate=30r/s;
+
+        # In-cluster Services listen on :80 (chart service.port), not the
+        # docker-compose ports. This is the EKS-17 fix.
+        upstream auth_service { server auth-service:80; }
+        upstream user_service { server user-service:80; }
+        upstream crud_service { server crud-service:80; }
+
+        server {
+            listen 8080;
+            limit_req zone=api_limit burst=50 nodelay;
+
+            # Strip any client-supplied X-User-Id; only auth_request may set it.
+            # Protected locations override this with the validated value.
+            proxy_set_header X-User-Id "";
+
+            location = /health {
+                default_type application/json;
+                return 200 '{"status":"ok"}';
+            }
+
+            location = /auth/health { proxy_pass http://auth_service; }
+            location = /auth/ready  { proxy_pass http://auth_service; }
+            location = /users/health { proxy_pass http://user_service; }
+            location = /users/ready  { proxy_pass http://user_service; }
+            location = /items/health { proxy_pass http://crud_service; }
+            location = /items/ready  { proxy_pass http://crud_service; }
+
+            location = /auth/validate {
+                internal;
+                proxy_pass              http://auth_service;
+                proxy_pass_request_body off;
+                proxy_set_header        Content-Length "";
+                proxy_set_header        X-Original-URI $request_uri;
+            }
+
+            location /auth/ {
+                proxy_pass http://auth_service;
+            }
+
+            location /users/ {
+                auth_request     /auth/validate;
+                auth_request_set $user_id $upstream_http_x_user_id;
+                proxy_set_header X-User-Id $user_id;
+                proxy_pass http://user_service;
+            }
+
+            location /items {
+                auth_request     /auth/validate;
+                auth_request_set $user_id $upstream_http_x_user_id;
+                proxy_set_header X-User-Id $user_id;
+                proxy_pass http://crud_service;
+            }
+        }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-gateway
+  namespace: staging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx-gateway
+  template:
+    metadata:
+      labels:
+        app: nginx-gateway
+      annotations:
+        # Rolls the pod when the ConfigMap changes (configmap mounts don't
+        # auto-reload nginx). Bump or let CI template this; manual for now.
+        configHash: "v1"
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - name: http
+              containerPort: 8080
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      volumes:
+        - name: config
+          configMap:
+            name: nginx-gateway-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-gateway
+  namespace: staging
+spec:
+  type: ClusterIP
+  selector:
+    app: nginx-gateway
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
